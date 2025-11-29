@@ -2,8 +2,13 @@
 
 # os is a module that lets us access the file system
 
+# Bryan Duggan likes Star Trek
+# Bryan Duggan is a great flute player
+
 import os 
 import sqlite3
+import pandas as pd
+import mysql.connector
 # sqlite for connecting to sqlite databases
 
 # An example of how to create a table, insert data
@@ -29,11 +34,37 @@ def do_databasse_stuff():
 
     # Print results
     for row in results:
-        print(row)
-
+        print(row)    
+        print(row[0])
+        print(row[1])
     # Close
+    
+    df = pd.read_sql("SELECT * FROM users", conn)
+    print(df.head())
     conn.close()
 
+def my_sql_database():
+    conn = mysql.connector.connect(host="localhost", user="root", database="tunepal")
+    
+    cursor = conn.cursor()
+    cursor.execute("select * from tuneindex")
+    
+    
+    while True:
+        row = cursor.fetchone()
+        if not row:
+            break
+        else:
+            print(row)
+    # results = cursor.fetchall()
+    
+    
+
+    # Print results
+    for row in results:
+        print(row)    
+    conn.close()
+    
 
 books_dir = "abc_books"
 
@@ -49,6 +80,7 @@ def process_file(file):
         pass
 
 
+# my_sql_database()
 # do_databasse_stuff()
 
 # Iterate over directories in abc_books
@@ -67,3 +99,4 @@ for item in os.listdir(books_dir):
                 file_path = os.path.join(item_path, file)
                 print(f"  Found abc file: {file}")
                 process_file(file_path)
+                
