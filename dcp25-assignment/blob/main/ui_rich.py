@@ -12,8 +12,13 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt, IntPrompt
 from rich.table import Table
+from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn
+from rich.layout import Layout
+from rich.text import Text
+from rich import box
 
-from db_utils import load_tunes_from_database, load_all_abc_data
+from db_utils import load_tunes_from_database, setup_database, save_tune_to_database
+from abc_parser import find_abc_files, parse_abc_file
 from tune_analysis import (
     count_tunes_by_book,
     get_tunes_by_book,
@@ -27,6 +32,98 @@ from tune_analysis import (
 console = Console()
 
 
+def _create_bar_chart(data: pd.Series, max_width: int = 30) -> str:
+    """Create a simple ASCII bar chart from a pandas Series.
+    
+    Parameters
+    ----------
+    data : pandas.Series
+        Data to visualize (index as labels, values as counts).
+    max_width : int
+        Maximum width of the longest bar.
+    
+    Returns
+    -------
+    str
+        Formatted bar chart string.
+    """
+    if data.empty:
+        return "No data"
+    
+    max_value = data.max()
+    lines = []
+    
+    for label, value in data.items():
+        bar_length = int((value / max_value) * max_width) if max_value > 0 else 0
+        bar = "█" * bar_length
+        lines.append(f"{str(label):>10} │ {bar} {value}")
+    
+    return "\n".join(lines)
+
+
+def _show_fancy_statistics(df: pd.DataFrame) -> None:
+    """Display fancy statistics with Rich panels and visual elements.
+    
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame containing all tunes.
+    
+    Returns
+    -------
+    None
+        Displays statistics to the console.
+    """
+    # Main statistics panel
+    stats_text = Text()
+    stats_text.append("📊 Total Tunes: ", style="bold cyan")
+    stats_text.append(f"{len(df):,}\n", style="bold yellow")
+    stats_text.append("📚 Number of Books: ", style="bold cyan")
+    stats_text.append(f"{df['book_number'].nunique()}\n", style="bold yellow")
+    
+    console.print(Panel(stats_text, title="[bold magenta]Overview[/bold magenta]", border_style="magenta"))
+    
+    # Top 10 Keys with bar chart
+    top_keys = df['key_signature'].value_counts().head(10)
+    keys_chart = _create_bar_chart(top_keys, max_width=40)
+    
+    console.print(Panel(
+        f"[cyan]{keys_chart}[/cyan]",
+        title="[bold green]🎵 Top 10 Most Common Keys[/bold green]",
+        border_style="green",
+        box=box.ROUNDED
+    ))
+    
+    # Top 10 Meters with bar chart
+    top_meters = df['meter'].value_counts().head(10)
+    meters_chart = _create_bar_chart(top_meters, max_width=40)
+    
+    console.print(Panel(
+        f"[yellow]{meters_chart}[/yellow]",
+        title="[bold blue]🎼 Top 10 Most Common Meters[/bold blue]",
+        border_style="blue",
+        box=box.ROUNDED
+    ))
+    
+    # Tunes per book table
+    book_counts = count_tunes_by_book(df)
+    book_table = Table(title="📖 Tunes per Book", box=box.DOUBLE_EDGE, show_header=True, header_style="bold magenta")
+    book_table.add_column("Book", justify="center", style="cyan")
+    book_table.add_column("Count", justify="center", style="green")
+    book_table.add_column("Percentage", justify="center", style="yellow")
+    
+    total = len(df)
+    for book_num, count in book_counts.items():
+        percentage = (count / total * 100) if total > 0 else 0
+        book_table.add_row(
+            str(book_num),
+            f"{count:,}",
+            f"{percentage:.1f}%"
+        )
+    
+    console.print(book_table)
+
+
 def _render_tunes_table(df: pd.DataFrame, title: str) -> None:
     """Render a DataFrame of tunes as a Rich table.
 
@@ -38,15 +135,21 @@ def _render_tunes_table(df: pd.DataFrame, title: str) -> None:
         Title to display above the table.
     """
     if df.empty:
-        console.print(Panel.fit("[bold yellow]No tunes found.[/bold yellow]", title=title))
+        console.print(Panel.fit("[bold yellow]❌ No tunes found.[/bold yellow]", title=title, border_style="yellow"))
         return
 
-    table = Table(title=title, show_lines=True)
-    table.add_column("ID", style="dim", justify="right")
-    table.add_column("Title", style="bold")
-    table.add_column("Book", justify="right")
-    table.add_column("Key")
-    table.add_column("Meter")
+    table = Table(
+        title=f"🎵 {title}",
+        show_lines=True,
+        box=box.ROUNDED,
+        title_style="bold magenta",
+        header_style="bold cyan"
+    )
+    table.add_column("ID", style="dim", justify="right", width=6)
+    table.add_column("Title", style="bold green", no_wrap=False)
+    table.add_column("Book", justify="center", style="cyan", width=6)
+    table.add_column("Key", style="yellow", width=8)
+    table.add_column("Meter", style="magenta", width=8)
 
     for _, tune in df.iterrows():
         table.add_row(
@@ -69,11 +172,55 @@ def run_rich_loader() -> int:
         Number of tunes loaded into the database.
     """
     console.print(Panel.fit("[bold cyan]Loading ABC data into database...[/bold cyan]"))
-    # Delegate to plain loader which already prints progress
-    total_tunes = load_all_abc_data()
+    
+    # Setup database schema first
+    setup_database()
+    
+    # Find all ABC files to process
+    all_files = find_abc_files()
+    total_tunes = 0
+    
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[bold blue]{task.description}"),
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        TextColumn("•"),
+        TextColumn("[cyan]{task.fields[info]}"),
+        TimeElapsedColumn(),
+        console=console,
+    ) as progress:
+        
+        main_task = progress.add_task(
+            "[cyan]Processing ABC files...",
+            total=len(all_files),
+            info="Starting..."
+        )
+        
+        for book_number, file_name, file_path in all_files:
+            # Update progress with current file
+            progress.update(
+                main_task,
+                info=f"Book {book_number}: {file_name}"
+            )
+            
+            # Parse and save tunes
+            tunes = parse_abc_file(file_path, book_number, file_name)
+            for tune in tunes:
+                save_tune_to_database(tune)
+            
+            total_tunes += len(tunes)
+            progress.advance(main_task)
+        
+        # Final update
+        progress.update(
+            main_task,
+            info=f"✓ Loaded {total_tunes} tunes from {len(all_files)} files"
+        )
+    
     console.print(
         Panel.fit(
-            f"[bold green]Successfully loaded {total_tunes} tunes into database![/bold green]",
+            f"[bold green]✓ Successfully loaded {total_tunes} tunes into database![/bold green]",
             border_style="green",
         )
     )
@@ -134,11 +281,22 @@ def run_rich_ui() -> NoReturn:
 
         elif choice == "3":
             counts = count_tunes_by_book(df)
-            table = Table(title="Tune counts by book", show_lines=True)
-            table.add_column("Book", justify="right")
-            table.add_column("Count", justify="right")
+            table = Table(
+                title="📚 Tune Counts by Book",
+                show_lines=True,
+                box=box.DOUBLE_EDGE,
+                title_style="bold magenta",
+                header_style="bold cyan"
+            )
+            table.add_column("Book", justify="center", style="cyan")
+            table.add_column("Count", justify="center", style="green")
+            table.add_column("Bar", justify="left")
+
+            max_count = counts.max() if not counts.empty else 1
             for book_num, count in counts.items():
-                table.add_row(str(book_num), str(count))
+                bar_length = int((count / max_count) * 30) if max_count > 0 else 0
+                bar = "█" * bar_length
+                table.add_row(str(book_num), f"{count:,}", f"[yellow]{bar}[/yellow]")
             console.print(table)
 
         elif choice == "4":
@@ -158,9 +316,7 @@ def run_rich_ui() -> NoReturn:
                 console.print("[yellow]Please enter a key![/yellow]")
 
         elif choice == "6":
-            # Re-use existing statistics printer but wrap header with Rich
-            console.print(Panel.fit("[bold cyan]Tune statistics[/bold cyan]"))
-            show_tune_statistics(df)
+            _show_fancy_statistics(df)
 
         elif choice == "7":
             _render_tunes_table(df, "All tunes")
@@ -172,4 +328,4 @@ def run_rich_ui() -> NoReturn:
         else:
             console.print("[red]Invalid choice! Please enter 1-8.[/red]")
 
-        Prompt.ask("Press Enter to continue", default="")
+        Prompt.ask("\n[dim]Press Enter to continue[/dim]", default="")
