@@ -155,6 +155,30 @@ def save_tune_to_database(tune_data: Dict):
     conn.close()
 
 
+def setup_database():
+    """Create the tunes table in the database if it does not already exist"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS tunes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            book_number INTEGER,
+            file_name TEXT,
+            reference_number TEXT,
+            title TEXT,
+            meter TEXT,
+            key_signature TEXT,
+            raw_abc TEXT
+        )
+        """
+    )
+
+    conn.commit()
+    conn.close()
+
+
 def load_all_abc_data():
     """Main function to find and parse all ABC files into the database"""
     setup_database()
