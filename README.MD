@@ -2,87 +2,239 @@
 
 - [Assignment Brief](assignment.md)
 
-Name:
+Name: Nada Abassi
 
-Student Number: 
+Student Number: C24317713
 
 ## Description
 
-This is a Python application that parses ABC music notation files and stores them in a database for analysis. The project reads ABC files from multiple folders (each representing a different book collection), extracts tune information like title, key, meter, and the music notation itself, then saves everything to a SQLite database. After loading the data, you can search and analyze the tunes using either a basic command-line interface or a more visually appealing interface built with the Rich library.
+This is a Python application that demonstrates file I/O, database operations, and data analysis through parsing ABC music notation files. The program reads ABC files from multiple folders (each representing a different book collection), extracts tune metadata such as title, key signature, and meter, then stores everything in a SQLite database for efficient searching and filtering.
+
+The application showcases several key programming concepts:
+- Directory traversal and file system operations
+- Text file parsing with pattern matching
+- SQL database design and operations
+- Data analysis using pandas DataFrames
+- Interactive command-line interface design
 
 ## How to Run
 
-First, make sure you have the required packages installed:
+**Install Required Dependencies:**
 
 ```bash
-pip install pandas rich
+pip install pandas
 ```
 
-Then you can run the application in two ways:
+**Run the Application:**
 
-**Basic version:**
 ```bash
-python app_main.py
+python assignment.py
 ```
 
-**Rich version (with better formatting):**
-```bash
-python app_rich_main.py
-```
+**First Time Setup:**
+When you first run the program, you'll see a main menu with three options:
+1. Load ABC files into database (do this first!)
+2. Search and browse tunes
+3. Quit
 
-When you start the application, you'll see a menu with three options:
-1. Load ABC data into database - Run this first to parse all the ABC files and populate the database
-2. Run user interface - Opens the interactive menu where you can search and analyze tunes
-3. Exit
+Select option 1 to parse all ABC files and populate the database. This only needs to be done once unless you add new ABC files.
+
+After loading, select option 2 to access the search menu where you can filter and analyze the tune collection.
+
+## Example Usage
+
+```
+ABC Tune Parser
+
+What do you want to do?
+1. Load ABC files into database (do this first!)
+2. Search and browse tunes
+3. Quit
+Choose (1-3): 1
+
+Loading files...
+Reading book 0: hnr1.abc...
+  Saved 50 tunes
+Reading book 1: hnr2.abc...
+  Saved 50 tunes
+Done! Loaded 100 tunes.
+
+What do you want to do?
+1. Load ABC files into database (do this first!)
+2. Search and browse tunes
+3. Quit
+Choose (1-3): 2
+
+Loading tunes...
+Loaded 100 tunes!
+
+
+1. Search by title
+2. Filter by book
+3. Count tunes per book
+4. Filter by meter
+5. Filter by key
+6. Show statistics
+7. View all tunes
+8. Exit
+--------------------------------------------------
+Choose (1-8): 1
+
+Search for: jig
+
+Found 15 tunes:
+  - The Irish Washerwoman (Book 0, Key: G)
+  - Morrison's Jig (Book 0, Key: Em)
+  - The Priest and His Boots (Book 1, Key: D)
+  ...
+```
 
 ## Features
 
-The application lets you do the following:
+**Search and Filter Options:**
+- Search tunes by title (case-insensitive)
+- Filter by book number to see all tunes in a collection
+- Filter by musical key signature (C, Dm, G major, etc.)
+- Filter by meter/time signature (4/4, 3/4, 6/8, etc.)
+- View complete tune collection
+- Count tunes per book for quick statistics
 
-- View all tunes from a specific book
-- Search for tunes by title
-- Filter tunes by musical key (like C major, D minor, etc.)
-- Filter tunes by time signature/meter
-- See statistics about the tune collection
-- Export search results to CSV files
+**Data Analysis:**
+- Display summary statistics (total tunes, number of books)
+- Show most common keys and meters
+- Pandas DataFrame integration for efficient filtering
 
-## Project Structure
+## Program Structure
 
-| File | Purpose |
-|------|---------|
-| app_main.py | Main entry point for the basic CLI version |
-| app_rich_main.py | Main entry point for the Rich-enhanced version |
-| abc_parser.py | Functions to find and parse ABC files |
-| db_utils.py | Database setup and data loading functions |
-| ui_cli.py | Basic command-line user interface |
-| ui_rich.py | Enhanced terminal UI using Rich library |
-| tune_analysis.py | Data analysis functions using pandas |
-| config.py | Configuration for file paths |
-| tunes.db | SQLite database file (created after first load) |
+The application is organized into five main sections:
+
+**1. Configuration (lines 18-32)**
+- Sets up file paths dynamically for portability
+- Locates ABC files folder and database location
+
+**2. File Finding (lines 35-67)**
+- `find_abc_files()` - Traverses directory structure to locate all .abc files
+- Handles numbered folders representing different book collections
+
+**3. File Parsing (lines 70-139)**
+- `read_abc_file()` - Parses ABC notation and extracts metadata
+- Handles multiple encoding formats (UTF-8 and latin-1)
+- Extracts title, key, meter, and reference number from each tune
+
+**4. Database Operations (lines 142-249)**
+- `create_database()` - Sets up SQLite schema
+- `save_tune()` - Inserts tune records into database
+- `load_all_data()` - ETL pipeline that orchestrates file finding, parsing, and loading
+- `load_data()` - Retrieves all tunes as a pandas DataFrame
+
+**5. Analysis & UI (lines 252-467)**
+- Search functions using pandas string matching and boolean indexing
+- Filter functions for book, meter, and key
+- Interactive menu system with user input handling
+- `main()` - Program entry point
 
 ## How It Works
 
-The program works in stages. First, it scans the abc_books directory to find all .abc files organized in numbered folders (0, 1, 2, etc.). Each folder represents a book collection. Then it parses each ABC file, extracting information from the header fields like X (reference number), T (title), K (key), M (meter), and the actual music notation. This data gets stored in a SQLite database with columns for book number, filename, tune ID, title, key, meter, and the ABC notation.
+**Data Loading Process:**
+1. The program scans the `abc_books` directory to find all .abc files in numbered subfolders (0, 1, 2, etc.)
+2. Each numbered folder represents a different book collection
+3. The parser reads each file line by line, identifying header fields:
+   - `X:` reference number (marks the start of a new tune)
+   - `T:` title
+   - `M:` meter (time signature)
+   - `K:` key signature
+4. Extracted data is stored in a SQLite database with this schema:
+   - id, book_number, file_name, reference_number, title, meter, key_signature, raw_abc
 
-Once the database is populated, the UI loads everything into a pandas DataFrame which makes it easy to filter and analyze the data. The basic CLI shows results as plain text while the Rich version adds colors, tables, and progress bars to make it look nicer.
+**Search and Analysis:**
+1. When you open the search menu, all tunes are loaded into a pandas DataFrame
+2. DataFrame operations enable fast filtering without repeated database queries
+3. Boolean indexing lets you filter on any column (book, key, meter, title)
+4. Results display immediately with tune details formatted for readability
+
+## Technical Implementation Details
+
+**Libraries Used:**
+- `os` - File system navigation and path manipulation
+- `sqlite3` - SQLite database operations
+- `pandas` - Data analysis and DataFrame operations
+
+**Key Programming Techniques:**
+- Directory traversal using `os.listdir()` and `os.path.join()`
+- Text parsing with string methods (`startswith()`, slicing)
+- Exception handling for file encoding issues
+- SQL parameterized queries to prevent injection
+- Pandas boolean indexing for filtering
+- While loops for menu systems
+- Dictionary operations with `.get()` for safe key access
+
+## Database Schema
+
+```sql
+CREATE TABLE tunes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    book_number INTEGER,
+    file_name TEXT,
+    reference_number TEXT,
+    title TEXT,
+    meter TEXT,
+    key_signature TEXT,
+    raw_abc TEXT
+)
+```
 
 ## Screenshots
 
-[Add your screenshots here]
+[Add screenshots of your program running here]
+
+## What I Learned
+
+This project really helped me understand how different programming concepts work together in a real application. Before this, I had learned about files, databases, and data analysis separately, but putting them all together showed me how they connect.
+
+The file parsing was trickier than I expected. ABC files have a specific format, and I had to be careful about detecting when a new tune starts (the X: field) and handling edge cases like files with multiple tunes or missing fields. I also learned about character encoding - some files wouldn't read with UTF-8 and needed latin-1 encoding instead.
+
+Working with SQLite taught me proper database design. I had to think about what columns to include and what data types to use. The parameterized queries (using ? placeholders) were important for security and I made sure to always commit changes and close connections properly.
+
+Pandas was probably the most useful discovery. Instead of writing complex SQL queries or loops to filter data, I could just load everything into a DataFrame and use simple operations like `data[data["key_signature"] == "C"]`. The boolean indexing concept took a bit to understand but once it clicked, it made filtering so much easier.
+
+The menu system taught me about program flow and user input validation. I had to handle invalid inputs gracefully and make sure the user couldn't break the program by entering unexpected values. Using try/except blocks for the numeric inputs was essential.
+
+One challenge was keeping the code organized and readable. I used clear function names, added comments, and grouped related functionality together. Breaking the program into logical steps (find files, parse files, database operations, search operations, UI) made it much easier to debug and explain.
 
 ## References
 
 - ABC notation standard: [https://abcnotation.com/](https://abcnotation.com/)
-- pandas documentation for data analysis
-- Rich library for terminal formatting
-- Assignment specification and starter code provided in class
+- Python sqlite3 documentation: [https://docs.python.org/3/library/sqlite3.html](https://docs.python.org/3/library/sqlite3.html)
+- pandas documentation: [https://pandas.pydata.org/docs/](https://pandas.pydata.org/docs/)
+- Assignment specification provided in class
 
-## What I Learned
+## Project Files
 
-Working on this project gave me hands-on experience with several important concepts. I got more comfortable with file I/O operations, especially recursively scanning directories and parsing structured text files. The database work helped me understand how to properly design a schema and use SQL with Python through sqlite3. Using pandas for data analysis was interesting because it makes filtering and grouping data much easier than doing it manually with loops.
+```
+dcp25-assignment-2/
+├── abc_books/              # ABC music files organized by book number
+│   ├── 0/
+│   ├── 1/
+│   └── 2/
+├── dcp25-assignment/
+│   └── blob/
+│       └── main/
+│           ├── assignment.py    # Main application file (475 lines)
+│           └── tunes.db        # SQLite database (created on first run)
+├── assignment.md           # Assignment specification
+└── README.MD              # This file
+```
 
-I also learned about code organization - splitting functionality into separate modules makes the code easier to work with and debug. The Rich library was new to me and it showed me how much better a terminal application can look with some formatting. Overall, this assignment connected a lot of different topics we've covered in the course into one practical application.
+**Note:** The entire application is contained in a single `assignment.py` file for simplicity and ease of understanding. All functionality - file finding, parsing, database operations, data analysis, and user interface - is organized into clear sections within this one file.
 
-## Challenges and Solutions
+## Summary
 
-[Add any specific challenges you faced and how you solved them]
+This project demonstrates a complete data pipeline from file parsing to database storage to interactive querying. The single-file structure makes it easy to understand the full workflow, while the comprehensive comments make the code suitable for demonstration and explanation. The use of pandas for data analysis shows how higher-level tools can simplify complex filtering operations, and the interactive menu provides a user-friendly way to explore the tune collection.
+
+Key takeaways:
+- File I/O with multiple encoding support
+- Text parsing with pattern recognition
+- SQLite database design and operations
+- Pandas DataFrames for data analysis
+- Interactive CLI with input validation
+- Modular code organization within a single file
