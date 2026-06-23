@@ -7,7 +7,7 @@ Name: Nada Abaasi
 Student Number: C24317713
 
 # Description of the project
-his project is a small data-centric application for exploring a collection of traditional tunes stored in ABC notation files.
+This project is a small data-centric application for exploring a collection of traditional tunes stored in ABC notation files.
 
 The program:
 
