@@ -157,8 +157,6 @@ The focus of the assignment is on working with files, a relational database, and
 
 # What I am most proud of in the assignment
 
-# What I am most proud of in the assignment
-
 I’m most proud of building a complete data pipeline from start to finish. At first, I wasn’t sure how to read the ABC files and turn them into something useful, but I ended up writing code that scans the entire directory, parses each file, and stores everything neatly in a database.
 
 I’m also really happy with the interactive menu. It took some trial and error to get the input handling right, but now you can load the data once and then explore the tunes in many ways—by title, book, meter, or key—without having to reload anything each time.
